@@ -1,6 +1,8 @@
 using System.Drawing;
 namespace WARBLIGHT;
 
+public enum EnemyShape { Circle, Square, Triangle, Diamond, Hexagon, Star, Capsule, Pentagon }
+
 public abstract class Enemy
 {
     public float X, Y;
@@ -10,6 +12,8 @@ public abstract class Enemy
     public int XPValue;
     public Color EnemyColor;
     public float Size = 10f;
+    public EnemyShape Shape = EnemyShape.Circle;
+    public string? SpriteName = null;
     public bool IsAlive = true;
     public bool IsElite = false;
     private float _contactTimer = 0f;
@@ -46,7 +50,11 @@ public abstract class Enemy
         if (HP <= 0) { IsAlive = false; OnDeath(gs); }
     }
 
-    public virtual void OnDeath(GameState gs) { }
+    public virtual void OnDeath(GameState gs)
+    {
+        // spawn simple particles on death
+        try { gs.SpawnParticles(X, Y, EnemyColor, 12); } catch { }
+    }
 
     public void AddPoison(float dmgPerSec, float duration)
         => PoisonEffects.Add((dmgPerSec, duration));
@@ -87,7 +95,7 @@ public abstract class Enemy
 // ===== GRUNT =====
 public class Grunt : Enemy
 {
-    public Grunt() { HP = MaxHP = 10; Speed = 60; Damage = 5; XPValue = 2; EnemyColor = Color.FromArgb(0, 180, 200); Size = 10f; }
+    public Grunt() { HP = MaxHP = 10; Speed = 60; Damage = 5; XPValue = 2; EnemyColor = Color.FromArgb(0, 180, 200); Size = 10f; Shape = EnemyShape.Square; SpriteName = "grunt.png"; }
     public override void Update(GameState gs, float dt) { base.Update(gs, dt); if (IsAlive) MoveTowardPlayer(gs, dt); }
 }
 
@@ -98,7 +106,7 @@ public class Rusher : Enemy
     private bool _isPaused = false;
     private bool _isBursting = false;
     private float _burstTimer = 0f;
-    public Rusher() { HP = MaxHP = 8; Speed = 120; Damage = 8; XPValue = 3; EnemyColor = Color.Yellow; Size = 9f; }
+    public Rusher() { HP = MaxHP = 8; Speed = 120; Damage = 8; XPValue = 3; EnemyColor = Color.Yellow; Size = 9f; Shape = EnemyShape.Triangle; SpriteName = "rusher.png"; }
     public override void Update(GameState gs, float dt)
     {
         base.Update(gs, dt); if (!IsAlive) return;
@@ -125,14 +133,14 @@ public class Rusher : Enemy
 // ===== TANK =====
 public class Tank : Enemy
 {
-    public Tank() { HP = MaxHP = 100; Speed = 30; Damage = 15; XPValue = 8; EnemyColor = Color.DarkRed; Size = 20f; }
+    public Tank() { HP = MaxHP = 100; Speed = 30; Damage = 15; XPValue = 8; EnemyColor = Color.DarkRed; Size = 20f; Shape = EnemyShape.Hexagon; SpriteName = "tank.png"; }
     public override void Update(GameState gs, float dt) { base.Update(gs, dt); if (IsAlive) MoveTowardPlayer(gs, dt); }
 }
 
 // ===== SHARD (spawned by Splitter) =====
 public class Shard : Enemy
 {
-    public Shard() { HP = MaxHP = 5; Speed = 100; Damage = 3; XPValue = 1; EnemyColor = Color.Magenta; Size = 6f; }
+    public Shard() { HP = MaxHP = 5; Speed = 100; Damage = 3; XPValue = 1; EnemyColor = Color.Magenta; Size = 6f; Shape = EnemyShape.Triangle; }
     public override void Update(GameState gs, float dt) { base.Update(gs, dt); if (IsAlive) MoveTowardPlayer(gs, dt); }
 }
 
@@ -140,7 +148,7 @@ public class Shard : Enemy
 public class Splitter : Enemy
 {
     private static readonly Random _rng = new();
-    public Splitter() { HP = MaxHP = 25; Speed = 80; Damage = 8; XPValue = 4; EnemyColor = Color.Magenta; Size = 12f; }
+    public Splitter() { HP = MaxHP = 25; Speed = 80; Damage = 8; XPValue = 4; EnemyColor = Color.Magenta; Size = 12f; Shape = EnemyShape.Diamond; }
     public override void Update(GameState gs, float dt) { base.Update(gs, dt); if (IsAlive) MoveTowardPlayer(gs, dt); }
     public override void OnDeath(GameState gs)
     {
@@ -158,7 +166,7 @@ public class Ghost : Enemy
 {
     public bool IsPhased = false;
     private float _phaseTimer = 2f;
-    public Ghost() { HP = MaxHP = 20; Speed = 70; Damage = 8; XPValue = 5; EnemyColor = Color.FromArgb(200, 220, 220, 220); Size = 10f; }
+    public Ghost() { HP = MaxHP = 20; Speed = 70; Damage = 8; XPValue = 5; EnemyColor = Color.FromArgb(200, 220, 220, 220); Size = 10f; Shape = EnemyShape.Circle; }
     public override void Update(GameState gs, float dt)
     {
         _phaseTimer -= dt;
@@ -173,7 +181,7 @@ public class Shooter : Enemy
 {
     private float _fireTimer = 1.5f;
     private static readonly Random _rng = new();
-    public Shooter() { HP = MaxHP = 30; Speed = 80; Damage = 0; XPValue = 6; EnemyColor = Color.Orange; Size = 11f; }
+    public Shooter() { HP = MaxHP = 30; Speed = 80; Damage = 0; XPValue = 6; EnemyColor = Color.Orange; Size = 11f; Shape = EnemyShape.Square; SpriteName = "shooter.png"; }
     public override void Update(GameState gs, float dt)
     {
         base.Update(gs, dt); if (!IsAlive) return;
@@ -207,7 +215,7 @@ public class Shooter : Enemy
 // ===== SWARMER =====
 public class Swarmer : Enemy
 {
-    public Swarmer() { HP = MaxHP = 3; Speed = 110; Damage = 4; XPValue = 1; EnemyColor = Color.LightGreen; Size = 5f; }
+    public Swarmer() { HP = MaxHP = 3; Speed = 110; Damage = 4; XPValue = 1; EnemyColor = Color.LightGreen; Size = 5f; Shape = EnemyShape.Triangle; }
     public override void Update(GameState gs, float dt) { base.Update(gs, dt); if (IsAlive) MoveTowardPlayer(gs, dt); }
 }
 
@@ -215,7 +223,7 @@ public class Swarmer : Enemy
 public class Leech : Enemy
 {
     private float _drainTimer = 0f;
-    public Leech() { HP = MaxHP = 20; Speed = 50; Damage = 0; XPValue = 4; EnemyColor = Color.Purple; Size = 9f; }
+    public Leech() { HP = MaxHP = 20; Speed = 50; Damage = 0; XPValue = 4; EnemyColor = Color.Purple; Size = 9f; Shape = EnemyShape.Diamond; }
     public override void Update(GameState gs, float dt)
     {
         base.Update(gs, dt); if (!IsAlive) return;
@@ -234,7 +242,7 @@ public class Leech : Enemy
 public class Bomber : Enemy
 {
     private bool _exploded = false;
-    public Bomber() { HP = MaxHP = 40; Speed = 90; Damage = 10; XPValue = 7; EnemyColor = Color.OrangeRed; Size = 13f; }
+    public Bomber() { HP = MaxHP = 40; Speed = 90; Damage = 10; XPValue = 7; EnemyColor = Color.OrangeRed; Size = 13f; Shape = EnemyShape.Star; SpriteName = "bomber.png"; }
     public override void Update(GameState gs, float dt)
     {
         base.Update(gs, dt); if (!IsAlive) return;
@@ -258,7 +266,7 @@ public class HollowKing : Enemy
     public HollowKing(float px, float py)
     {
         HP = MaxHP = 1000; Speed = 60; Damage = 20; XPValue = 100;
-        EnemyColor = Color.FromArgb(180, 50, 50); Size = 30f;
+        EnemyColor = Color.FromArgb(180, 50, 50); Size = 30f; Shape = EnemyShape.Hexagon; SpriteName = "hollowking.png";
         X = px; Y = py - 200;
     }
     public override void Update(GameState gs, float dt)
@@ -290,7 +298,7 @@ public class PlagueMother : Enemy
     public PlagueMother(float px, float py)
     {
         HP = MaxHP = 1500; Speed = 0; Damage = 0; XPValue = 150;
-        EnemyColor = Color.FromArgb(100, 200, 80); Size = 35f;
+        EnemyColor = Color.FromArgb(100, 200, 80); Size = 35f; Shape = EnemyShape.Circle; SpriteName = "plaguemother.png";
         X = px + (_rng.NextSingle() - 0.5f) * 300 + 300;
         Y = py + (_rng.NextSingle() - 0.5f) * 300;
         X = Math.Clamp(X, 100f, 1900f); Y = Math.Clamp(Y, 100f, 1900f);

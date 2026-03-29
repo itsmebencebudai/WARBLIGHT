@@ -8,6 +8,8 @@ public class GameState
     public List<Projectile> Projectiles { get; } = new();
     public List<XpOrb> XpOrbs { get; } = new();
     public List<Weapon> Weapons { get; } = new();
+    public List<Particle> Particles { get; } = new();
+    public bool UseSprites { get; set; } = false;
     public WaveSpawner WaveSpawner { get; } = new();
     public float GameTime { get; set; } = 0f;
     public int Score { get; set; } = 0;
@@ -27,15 +29,19 @@ public class GameState
         Player.Update(this, dt, KeysPressed);
         foreach (var w in Weapons.ToList()) w.Update(this, dt);
 
-        foreach (var e in Enemies) e.Update(this, dt);
+        // Iterate over copies to avoid "Collection was modified" if updates spawn/remove entities
+        foreach (var e in Enemies.ToList()) e.Update(this, dt);
 
-        foreach (var p in Projectiles) p.Update(this, dt);
+        foreach (var p in Projectiles.ToList()) p.Update(this, dt);
 
         CheckPlayerProjectileVsEnemies();
         CheckEnemyProjectileVsPlayer();
         CheckEnemyContactVsPlayer();
         CollectXpOrbs();
         WaveSpawner.Update(this, dt);
+
+        // Update particles
+        foreach (var part in Particles.ToList()) part.Update(dt);
 
         // Spawn XP orbs and update score for dead enemies
         for (int i = 0; i < Enemies.Count; i++)
@@ -51,6 +57,7 @@ public class GameState
         Enemies.RemoveAll(e => !e.IsAlive);
         Projectiles.RemoveAll(p => !p.IsAlive);
         XpOrbs.RemoveAll(o => !o.IsAlive);
+        Particles.RemoveAll(p => !p.IsAlive);
 
         if (Player.HP <= 0) IsGameOver = true;
         if (GameTime >= 1800f) IsVictory = true;
@@ -58,7 +65,7 @@ public class GameState
 
     private void CheckPlayerProjectileVsEnemies()
     {
-        foreach (var p in Projectiles)
+        foreach (var p in Projectiles.ToList())
         {
             if (!p.IsAlive || p.Owner != ProjectileOwner.Player || p.IsExplosionEffect) continue;
             foreach (var e in Enemies)
@@ -88,7 +95,7 @@ public class GameState
 
     private void CheckEnemyProjectileVsPlayer()
     {
-        foreach (var p in Projectiles)
+        foreach (var p in Projectiles.ToList())
         {
             if (!p.IsAlive || p.Owner != ProjectileOwner.Enemy || p.IsExplosionEffect) continue;
             float dx = Player.X - p.X, dy = Player.Y - p.Y;
@@ -247,4 +254,24 @@ public class GameState
     public void SpawnEnemy(Enemy e) => Enemies.Add(e);
     public void SpawnProjectile(Projectile p) => Projectiles.Add(p);
     public void SpawnXpOrb(float x, float y, int value) => XpOrbs.Add(new XpOrb { X = x, Y = y, Value = value });
+    public void SpawnParticles(float x, float y, Color color, int count)
+    {
+        var rnd = new Random();
+        for (int i = 0; i < count; i++)
+        {
+            float ang = (float)(rnd.NextDouble() * Math.PI * 2);
+            float spd = 20f + (float)rnd.NextDouble() * 120f;
+            var p = new Particle
+            {
+                X = x,
+                Y = y,
+                VX = MathF.Cos(ang) * spd,
+                VY = MathF.Sin(ang) * spd,
+                Life = 0.3f + (float)rnd.NextDouble() * 0.7f,
+                Color = color,
+                Size = 2f + (float)rnd.NextDouble() * 3f
+            };
+            Particles.Add(p);
+        }
+    }
 }

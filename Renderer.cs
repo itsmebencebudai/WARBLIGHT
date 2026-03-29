@@ -19,13 +19,24 @@ public static class Renderer
         DrawWorldBounds(g, camX, camY);
         foreach (var orb in gs.XpOrbs) DrawXpOrb(g, orb, camX, camY);
         foreach (var p in gs.Projectiles) DrawProjectile(g, p, camX, camY);
-        foreach (var e in gs.Enemies) DrawEnemy(g, e, camX, camY);
+        // particles
+        foreach (var part in gs.Particles) DrawParticle(g, part, camX, camY);
+        foreach (var e in gs.Enemies) DrawEnemy(g, e, camX, camY, gs);
         foreach (var w in gs.Weapons) w.Draw(g, gs, camX, camY);
         DrawPlayer(g, gs.Player, camX, camY);
         DrawHUD(g, gs);
         if (gs.IsUpgradePaused) DrawUpgradeCards(g, gs);
         if (gs.IsGameOver) DrawGameOver(g, gs);
         if (gs.IsVictory) DrawVictory(g, gs);
+    }
+
+    private static void DrawParticle(Graphics g, Particle p, float camX, float camY)
+    {
+        float sx = p.X - camX, sy = p.Y - camY;
+        if (sx < -20 || sx > 820 || sy < -20 || sy > 620) return;
+        using var b = new SolidBrush(p.Color);
+        float r = p.Size;
+        g.FillEllipse(b, sx - r, sy - r, r * 2, r * 2);
     }
 
     private static void DrawGrid(Graphics g, float camX, float camY)
@@ -74,20 +85,151 @@ public static class Renderer
         g.FillEllipse(pb, sx - sr, sy - sr, sr * 2, sr * 2);
     }
 
-    private static void DrawEnemy(Graphics g, Enemy e, float camX, float camY)
+    private static readonly System.Collections.Generic.Dictionary<string, Image> _imageCache = new();
+    private static Image? TryGetImage(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        if (_imageCache.TryGetValue(name, out var img)) return img;
+        try
+        {
+            var path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", name);
+            if (!System.IO.File.Exists(path)) return null;
+            img = Image.FromFile(path);
+            _imageCache[name] = img;
+            return img;
+        }
+        catch { return null; }
+    }
+
+    private static void DrawEnemy(Graphics g, Enemy e, float camX, float camY, GameState gs)
     {
         float sx = e.X - camX, sy = e.Y - camY;
         if (sx < -50 || sx > 850 || sy < -50 || sy > 650) return;
         float r = e.Size;
         Color c = e.EnemyColor;
         if (e is Ghost ghost && ghost.IsPhased) c = Color.FromArgb(60, c);
-        DrawGlow(g, c, sx, sy, r, e.IsElite ? 4 : 2);
+        // Draw glow removed; keep solid color
         using var b = new SolidBrush(c);
-        g.FillEllipse(b, sx - r, sy - r, r * 2, r * 2);
-        if (e.IsElite)
+        // If sprites are enabled and the enemy has a sprite, draw it
+        if (gs.UseSprites && !string.IsNullOrEmpty(e.SpriteName))
         {
-            using var pen = new Pen(Color.White, 2f);
-            g.DrawEllipse(pen, sx - r, sy - r, r * 2, r * 2);
+            var img = TryGetImage(e.SpriteName!);
+            if (img != null)
+            {
+                float w = r * 2f * (img.Width / (float)img.Height);
+                float h = r * 2f;
+                g.DrawImage(img, sx - w / 2f, sy - h / 2f, w, h);
+                // outline for elite
+                if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawEllipse(pen, sx - r, sy - r, r * 2, r * 2); }
+                // HP bar
+                if (e.HP < e.MaxHP)
+                {
+                    float bw = r * 2 + 4, bh = 3f;
+                    float bx = sx - r - 2, by = sy - r - 7;
+                    using var bgBrush = new SolidBrush(Color.FromArgb(150, 50, 0, 0));
+                    g.FillRectangle(bgBrush, bx, by, bw, bh);
+                    using var hpBrush = new SolidBrush(Color.Red);
+                    g.FillRectangle(hpBrush, bx, by, bw * (e.HP / e.MaxHP), bh);
+                }
+                return;
+            }
+        }
+
+        switch (e.Shape)
+        {
+            case EnemyShape.Circle:
+                g.FillEllipse(b, sx - r, sy - r, r * 2, r * 2);
+                if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawEllipse(pen, sx - r, sy - r, r * 2, r * 2); }
+                break;
+            case EnemyShape.Square:
+                g.FillRectangle(b, sx - r, sy - r, r * 2, r * 2);
+                if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawRectangle(pen, sx - r, sy - r, r * 2, r * 2); }
+                break;
+            case EnemyShape.Triangle:
+                {
+                    float angle = MathF.Atan2(gs.Player.Y - e.Y, gs.Player.X - e.X);
+                    float tipX = sx + MathF.Cos(angle) * r * 1.8f;
+                    float tipY = sy + MathF.Sin(angle) * r * 1.8f;
+                    float baseCenterX = sx - MathF.Cos(angle) * r * 0.6f;
+                    float baseCenterY = sy - MathF.Sin(angle) * r * 0.6f;
+                    float perpX = -MathF.Sin(angle), perpY = MathF.Cos(angle);
+                    float leftX = baseCenterX + perpX * r;
+                    float leftY = baseCenterY + perpY * r;
+                    float rightX = baseCenterX - perpX * r;
+                    float rightY = baseCenterY - perpY * r;
+                    var pts = new PointF[] { new PointF(tipX, tipY), new PointF(leftX, leftY), new PointF(rightX, rightY) };
+                    g.FillPolygon(b, pts);
+                    if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawPolygon(pen, pts); }
+                }
+                break;
+            case EnemyShape.Diamond:
+                {
+                    var pts = new PointF[] {
+                        new PointF(sx, sy - r),
+                        new PointF(sx + r, sy),
+                        new PointF(sx, sy + r),
+                        new PointF(sx - r, sy)
+                    };
+                    g.FillPolygon(b, pts);
+                    if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawPolygon(pen, pts); }
+                }
+                break;
+            case EnemyShape.Capsule:
+                {
+                    // capsule: rectangle with semicircle ends
+                    float w = r * 2f;
+                    float h = r * 1.2f;
+                    // draw center rectangle
+                    g.FillRectangle(b, sx - w / 2f, sy - h / 2f, w, h);
+                    // draw end caps
+                    g.FillEllipse(b, sx - w / 2f - h / 2f, sy - h / 2f, h, h);
+                    g.FillEllipse(b, sx + w / 2f - h / 2f, sy - h / 2f, h, h);
+                    if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawRectangle(pen, sx - w / 2f, sy - h / 2f, w, h); }
+                }
+                break;
+            case EnemyShape.Pentagon:
+                {
+                    var pts = new PointF[5];
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float a = (float)(i * MathF.PI * 2 / 5 - MathF.PI / 2);
+                        pts[i] = new PointF(sx + MathF.Cos(a) * r, sy + MathF.Sin(a) * r);
+                    }
+                    g.FillPolygon(b, pts);
+                    if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawPolygon(pen, pts); }
+                }
+                break;
+            case EnemyShape.Hexagon:
+                {
+                    var pts = new PointF[6];
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float a = (float)(i * MathF.PI * 2 / 6 - MathF.PI / 6);
+                        pts[i] = new PointF(sx + MathF.Cos(a) * r, sy + MathF.Sin(a) * r);
+                    }
+                    g.FillPolygon(b, pts);
+                    if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawPolygon(pen, pts); }
+                }
+                break;
+            case EnemyShape.Star:
+                {
+                    int spikes = 5;
+                    var pts = new List<PointF>();
+                    float outer = r * 1.6f, inner = r * 0.7f;
+                    for (int i = 0; i < spikes * 2; i++)
+                    {
+                        float a = i * MathF.PI / spikes - MathF.PI / 2;
+                        float rad = (i % 2 == 0) ? outer : inner;
+                        pts.Add(new PointF(sx + MathF.Cos(a) * rad, sy + MathF.Sin(a) * rad));
+                    }
+                    g.FillPolygon(b, pts.ToArray());
+                    if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawPolygon(pen, pts.ToArray()); }
+                }
+                break;
+            default:
+                g.FillEllipse(b, sx - r, sy - r, r * 2, r * 2);
+                if (e.IsElite) { using var pen = new Pen(Color.White, 2f); g.DrawEllipse(pen, sx - r, sy - r, r * 2, r * 2); }
+                break;
         }
         if (e.HP < e.MaxHP)
         {
@@ -158,7 +300,6 @@ public static class Renderer
             int cx = sx + i * (CARD_W + CARD_GAP);
             using (var bg = new SolidBrush(Color.FromArgb(200, 30, 30, 50))) g.FillRectangle(bg, cx, sy, CARD_W, CARD_H);
             using (var border = new Pen(Color.FromArgb(200, 100, 100, 200), 2f)) g.DrawRectangle(border, cx, sy, CARD_W, CARD_H);
-            using (var glow = new Pen(Color.FromArgb(60, 150, 150, 255), 5f)) g.DrawRectangle(glow, cx - 2, sy - 2, CARD_W + 4, CARD_H + 4);
             g.DrawString(card.Title, _fontCard, Brushes.Cyan, cx + 8, sy + 10);
             DrawWrappedText(g, card.Description, _fontCardDesc, Brushes.LightGray, cx + 8, sy + 35, CARD_W - 16);
             g.DrawString("[Click to select]", _fontSmall, Brushes.DarkGray, cx + 8, sy + CARD_H - 20);
@@ -207,28 +348,16 @@ public static class Renderer
 
     private static void DrawGlowText(Graphics g, string text, Font font, Color color, float cx, float cy)
     {
+        // Draw plain centered text without glow/shadow
         var size = g.MeasureString(text, font);
         float x = cx - size.Width / 2, y = cy - size.Height / 2;
-        for (int i = 4; i >= 1; i--)
-        {
-            using var b = new SolidBrush(Color.FromArgb(50 * i, color));
-            g.DrawString(text, font, b, x - i, y - i);
-            g.DrawString(text, font, b, x + i, y - i);
-            g.DrawString(text, font, b, x - i, y + i);
-            g.DrawString(text, font, b, x + i, y + i);
-        }
         using var main = new SolidBrush(color);
         g.DrawString(text, font, main, x, y);
     }
 
     private static void DrawGlow(Graphics g, Color color, float cx, float cy, float radius, int steps)
     {
-        for (int i = steps; i >= 1; i--)
-        {
-            float r = radius + i * 4f;
-            int alpha = (int)(80f * i / steps);
-            using var b = new SolidBrush(Color.FromArgb(Math.Max(1, alpha), color));
-            g.FillEllipse(b, cx - r, cy - r, r * 2, r * 2);
-        }
+        // Glow disabled: no-op to remove shadows/halo effects
+        return;
     }
 }
