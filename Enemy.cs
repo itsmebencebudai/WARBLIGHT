@@ -214,7 +214,6 @@ public class Swarmer : Enemy
 // ===== LEECH =====
 public class Leech : Enemy
 {
-    private bool _isAttached = false;
     private float _drainTimer = 0f;
     public Leech() { HP = MaxHP = 20; Speed = 50; Damage = 0; XPValue = 4; EnemyColor = Color.Purple; Size = 9f; }
     public override void Update(GameState gs, float dt)
@@ -223,12 +222,11 @@ public class Leech : Enemy
         float dist = DistToPlayer(gs);
         if (dist < 12f)
         {
-            _isAttached = true;
             X = gs.Player.X; Y = gs.Player.Y;
             _drainTimer += dt;
             if (_drainTimer >= 0.5f) { _drainTimer = 0; gs.Player.TakeDamage(1f); }
         }
-        else { _isAttached = false; MoveTowardPlayer(gs, dt); }
+        else { MoveTowardPlayer(gs, dt); }
     }
 }
 

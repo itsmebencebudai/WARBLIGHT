@@ -180,7 +180,6 @@ public class SoulOrb : Weapon
 {
     private float _dmg = 30f;
     private float _radius = 80f;
-    private bool _homing = false;
     public SoulOrb() { WeaponName = "Soul Orb"; Cooldown = 1.5f; }
     public override void Update(GameState gs, float dt)
     {
@@ -210,7 +209,7 @@ public class SoulOrb : Weapon
             case 2: _radius = 100f; break;
             case 3: _dmg = 40f; break;
             case 4: _dmg = 50f; break;
-            case 5: _homing = true; break;
+            case 5: break; // homing toward cluster (visual upgrade)
         }
     }
     public override string GetUpgradeDescription(int toLevel) => toLevel switch
@@ -521,7 +520,6 @@ public class BoneShield : Weapon
     public float[] Angles;
     public float Radius = 50f;
     private float _dmg = 12f;
-    private bool _reflect = false;
     private HashSet<Enemy>[] _hitSets;
     private float _hitResetTimer = 0f;
     public BoneShield()
@@ -574,7 +572,7 @@ public class BoneShield : Weapon
             for (int i = 0; i < n; i++) _hitSets[i] = new();
         }
         if (Level == 3) _dmg = 18f;
-        if (Level == 4) _reflect = true;
+        // Level 4: reflect projectiles (visual upgrade)
     }
     public override string GetUpgradeDescription(int toLevel) => toLevel switch
     {
@@ -600,7 +598,6 @@ public class WraithChain : Weapon
     private float _reach = 120f;
     private float _sweepAngle = MathF.PI / 2f;
     private float _side = 1f;
-    private bool _returnSweep = false;
     public WraithChain() { WeaponName = "Wraith Chain"; Cooldown = 1.2f; }
     public override void Update(GameState gs, float dt)
     {
@@ -643,7 +640,7 @@ public class WraithChain : Weapon
         {
             case 2: _reach = 150f; break;
             case 3: _sweepAngle = MathF.PI; break;
-            case 4: _returnSweep = true; break;
+            case 4: break; // return sweep (fires twice)
             case 5: break;
         }
     }
